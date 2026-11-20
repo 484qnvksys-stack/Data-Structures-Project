@@ -2,16 +2,235 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Scanner;
 
-public class RideSharingSystem {
+public class RideSharingSystem implements IRideSharingSystem {
+    // Rider indexes
+    private IBST<Integer, IRider> ridersById;
+    private IBST<String, IBST<Integer, IRider>> ridersByName;
+    private IBST<String, IBST<Integer, IRider>> ridersByHomeCity;
+
+    // Driver indexes
+    private IBST<Integer, IDriver> driversById;
+    private IBST<String, IDriver> driversByPlate;
+    private IBST<VehicleType, IBST<Integer, IDriver>> driversByVehicleType;
+
     // Ride indexes
     private IBST<Integer, IRide> ridesById;
     private IBST<String, IBST<Integer, IRide>> ridesByPickupLocation;
     private IBST<IDateTime, IBST<Integer, IRide>> ridesByPickupTime;
 
     public RideSharingSystem() {
+        ridersById = new BST<Integer, IRider>();
+        ridersByName = new BST<String, IBST<Integer, IRider>>();
+        ridersByHomeCity = new BST<String, IBST<Integer, IRider>>();
+
+        driversById = new BST<Integer, IDriver>();
+        driversByPlate = new BST<String, IDriver>();
+        driversByVehicleType = new BST<VehicleType, IBST<Integer, IDriver>>();
+
         ridesById = new BST<Integer, IRide>();
         ridesByPickupLocation = new BST<String, IBST<Integer, IRide>>();
         ridesByPickupTime = new BST<IDateTime, IBST<Integer, IRide>>();
+    }
+
+    // ================================================================
+    // Riders (Jouri)
+    // ================================================================
+
+    // Reads the riders file; skips bad lines. Returns the number added, or -1.
+    public int loadRidersFromCSV(String ridersFilePath) {
+        try {
+            Scanner file = new Scanner(new File(ridersFilePath));
+            int count = 0;
+            while (file.hasNextLine()) {
+                String line = file.nextLine().trim();
+                if (line.length() == 0)
+                    continue;
+                String[] f = line.split(",");
+                try {
+                    // id, name, email, phone, homeCity
+                    IRider rider = new Rider(Integer.parseInt(f[0].trim()), f[1].trim(),
+                            f[2].trim(), f[3].trim(), f[4].trim());
+                    if (addRider(rider))
+                        count++;
+                } catch (Exception e) {
+                    // Skip this line if its data is invalid.
+                }
+            }
+            file.close();
+            return count;
+        } catch (FileNotFoundException e) {
+            return -1;
+        }
+    }
+
+    // Adds the rider to the three rider indexes. False if the ID already exists.
+    public boolean addRider(IRider rider) {
+        if (rider == null)
+            return false;
+        // check uniqueness first, so a rejected rider is not left in any index
+        if (ridersById.findKey(rider.getId()))
+            return false;
+
+        ridersById.insert(rider.getId(), rider);
+
+        // name index: BST inside a BST
+        if (ridersByName.findKey(rider.getName())) {
+            ridersByName.retrieve().insert(rider.getId(), rider);
+        } else {
+            IBST<Integer, IRider> inner = new BST<Integer, IRider>();
+            inner.insert(rider.getId(), rider);
+            ridersByName.insert(rider.getName(), inner);
+        }
+
+        // home city index: BST inside a BST
+        if (ridersByHomeCity.findKey(rider.getHomeCity())) {
+            ridersByHomeCity.retrieve().insert(rider.getId(), rider);
+        } else {
+            IBST<Integer, IRider> inner = new BST<Integer, IRider>();
+            inner.insert(rider.getId(), rider);
+            ridersByHomeCity.insert(rider.getHomeCity(), inner);
+        }
+        return true;
+    }
+
+    // Returns null if not found.
+    public IRider searchRiderById(int riderId) {
+        if (ridersById.findKey(riderId))
+            return ridersById.retrieve();
+        return null;
+    }
+
+    // Riders with this exact name, sorted by ID.
+    public LinkedList<IRider> searchRidersByName(String fullName) {
+        if (ridersByName.findKey(fullName))
+            return ridersByName.retrieve().inOrder();
+        return new LinkedList<IRider>();
+    }
+
+    // Riders from this home city, sorted by ID.
+    public LinkedList<IRider> searchRidersByHomeCity(String homeCity) {
+        if (ridersByHomeCity.findKey(homeCity))
+            return ridersByHomeCity.retrieve().inOrder();
+        return new LinkedList<IRider>();
+    }
+
+    // All riders, sorted by ID.
+    public LinkedList<IRider> getAllRiders() {
+        return ridersById.inOrder();
+    }
+
+    // Drivers of the vehicle type whose schedule has no ride overlapping the slot, sorted by ID.
+    public LinkedList<IDriver> findAvailableDrivers(ITimeSlot timeSlot, VehicleType vehicleType) {
+        LinkedList<IDriver> result = new LinkedList<IDriver>();
+        if (!driversByVehicleType.findKey(vehicleType))
+            return result;
+
+        LinkedList<IDriver> drivers = driversByVehicleType.retrieve().inOrder();
+        if (drivers.empty() == false) {
+            drivers.findFirst();
+            while (drivers.last() == false) {
+                IDriver driver = drivers.retrieve();
+                // findKey is true only if some ride overlaps the slot
+                if (driver.getSchedule().findKey(timeSlot) == false)
+                    result.insert(driver);
+                drivers.findNext();
+            }
+            IDriver driver = drivers.retrieve();   // last driver
+            if (driver.getSchedule().findKey(timeSlot) == false)
+                result.insert(driver);
+        }
+        return result;
+    }
+
+    // ================================================================
+    // Tree statistics (Jouri)
+    // ================================================================
+
+    public int nbKeyCompRiderById(int riderId) {
+        return ridersById.nbKeyComp(riderId);
+    }
+
+    // size() of the index (outer BST for a BST inside a BST)
+    public int indexSize(IndexName index) {
+        switch (index) {
+            case RIDERS_BY_ID:             return ridersById.size();
+            case RIDERS_BY_NAME:           return ridersByName.size();
+            case RIDERS_BY_HOME_CITY:      return ridersByHomeCity.size();
+            case DRIVERS_BY_ID:            return driversById.size();
+            case DRIVERS_BY_PLATE:         return driversByPlate.size();
+            case DRIVERS_BY_VEHICLE_TYPE:  return driversByVehicleType.size();
+            case RIDES_BY_ID:              return ridesById.size();
+            case RIDES_BY_PICKUP_LOCATION: return ridesByPickupLocation.size();
+            case RIDES_BY_PICKUP_TIME:     return ridesByPickupTime.size();
+            default:                       return 0;
+        }
+    }
+
+    // height() of the index (outer BST for a BST inside a BST)
+    public int indexHeight(IndexName index) {
+        switch (index) {
+            case RIDERS_BY_ID:             return ridersById.height();
+            case RIDERS_BY_NAME:           return ridersByName.height();
+            case RIDERS_BY_HOME_CITY:      return ridersByHomeCity.height();
+            case DRIVERS_BY_ID:            return driversById.height();
+            case DRIVERS_BY_PLATE:         return driversByPlate.height();
+            case DRIVERS_BY_VEHICLE_TYPE:  return driversByVehicleType.height();
+            case RIDES_BY_ID:              return ridesById.height();
+            case RIDES_BY_PICKUP_LOCATION: return ridesByPickupLocation.height();
+            case RIDES_BY_PICKUP_TIME:     return ridesByPickupTime.height();
+            default:                       return 0;
+        }
+    }
+
+    // ================================================================
+    // Drivers + scheduling (Student 2) - TODO
+    // These are placeholders so the project compiles. Replace each body.
+    // ================================================================
+
+    // TODO (Student 2): read id,name,phone,plate,type; new Driver(...) with
+    // VehicleType.valueOf(type); count drivers added with addDriver; -1 if no file.
+    public int loadDriversFromCSV(String driversFilePath) {
+        return 0;
+    }
+
+    // TODO (Student 2): false if driversById has the ID or driversByPlate has the plate.
+    // Then insert into driversById, driversByPlate, and driversByVehicleType
+    // (BST inside a BST, same steps as ridersByHomeCity in addRider).
+    public boolean addDriver(IDriver driver) {
+        return false;
+    }
+
+    // TODO (Student 2): findKey + retrieve on driversById, null if not found.
+    public IDriver searchDriverById(int driverId) {
+        return null;
+    }
+
+    // TODO (Student 2): inner BST of driversByVehicleType, inOrder().
+    public LinkedList<IDriver> searchDriversByVehicleType(VehicleType vehicleType) {
+        return new LinkedList<IDriver>();
+    }
+
+    // TODO (Student 2): driversById.inOrder().
+    public LinkedList<IDriver> getAllDrivers() {
+        return new LinkedList<IDriver>();
+    }
+
+    // TODO (Student 2): rider and driver must exist, and neither
+    // getSchedule().findKey(timeSlot) may be true. Ride ID = next ID (1, 2, 3, ...,
+    // only increase on success). new PrivateRide(...), insert it into ridesById,
+    // ridesByPickupLocation, ridesByPickupTime (BST inside BST), and into the
+    // rider's and driver's schedules (key = timeSlot). Return the ride ID or -1.
+    public int schedulePrivateRide(String pickupLocation, String dropoffLocation,
+                                   ITimeSlot timeSlot, int riderId, int driverId) {
+        return -1;
+    }
+
+    // TODO (Student 2): same as private, but riderIds needs >= 2 IDs and no
+    // duplicates, and ALL checks must pass before changing anything.
+    // new SharedRide(...), addParticipant for each rider.
+    public int scheduleSharedRide(String pickupLocation, String dropoffLocation,
+                                  ITimeSlot timeSlot, int[] riderIds, int driverId) {
+        return -1;
     }
 
     // Find rides from one pickup location.
