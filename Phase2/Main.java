@@ -30,9 +30,8 @@ public class Main {
                     searchRidersByHomeCity();
                     break;
                 case 4:
-                    // TODO (Student 3): printList(system.getAllRidesAlphabetically());
-                    System.out.println("Not implemented yet.");
-                    break;
+                    listAllRidesAlphabetically();
+                    break;                
                 case 5:
                     // TODO (Student 2): ask "rider or driver", then the ID; find the person with
                     // searchRiderById / searchDriverById; printList(person.getSchedule().inOrder());
@@ -45,9 +44,7 @@ public class Main {
                     addRider();
                     break;
                 case 8:
-                    // TODO (Student 3): read two date/times with readDateTime, then
-                    // printList(system.searchRidesByPickupTimeRange(from, to));
-                    System.out.println("Not implemented yet.");
+                    searchRidesByPickupTimeRange();
                     break;
                 case 9:
                     findAvailableDrivers();
@@ -59,13 +56,11 @@ public class Main {
                     System.out.println("Not implemented yet.");
                     break;
                 case 11:
-                    // TODO (Student 3): read ride ID; print whether system.cancelRide(id) succeeded.
-                    System.out.println("Not implemented yet.");
-                    break;
+                  cancelRide();
+                   break;
                 case 12:
-                    // TODO (Student 3): read rider ID; print whether system.removeRider(id) succeeded.
-                    System.out.println("Not implemented yet.");
-                    break;
+                  removeRider();
+                  break;
                 case 0:
                     System.out.println("Goodbye!");
                     break;
@@ -116,6 +111,11 @@ public class Main {
         String city = readLine("Enter home city: ");
         printList(system.searchRidersByHomeCity(city));
     }
+    
+    // Option 4
+    private static void listAllRidesAlphabetically() {
+        printList(system.getAllRidesAlphabetically());
+   }
 
     // Option 6
     private static void showIndexStatistics() {
@@ -156,6 +156,14 @@ public class Main {
             System.out.println("Failed: " + e.getMessage());
         }
     }
+    
+    // Option 8
+     private static void searchRidesByPickupTimeRange() {
+           IDateTime from = readDateTime("Enter start date/time (MM/DD/YYYY HH:MM): ");
+           IDateTime to = readDateTime("Enter end date/time (MM/DD/YYYY HH:MM): ");
+
+    printList(system.searchRidesByPickupTimeRange(from, to));
+       }
 
     // Option 9
     private static void findAvailableDrivers() {
@@ -169,6 +177,26 @@ public class Main {
             System.out.println("Invalid time slot: the pickup must be before the drop-off.");
         }
     }
+    
+    // Option 11
+       private static void cancelRide() {
+       int rideId = readInt("Enter ride ID: ");
+
+       if (system.cancelRide(rideId))
+           System.out.println("Ride cancelled successfully.");
+      else
+          System.out.println("Ride not found.");
+     }
+     
+     // Option 12
+         private static void removeRider() {
+           int riderId = readInt("Enter rider ID: ");
+
+             if (system.removeRider(riderId))
+                System.out.println("Rider removed successfully.");
+           else
+             System.out.println("Rider not found.");
+          }
 
     // ---------------------------------------------------------- input helpers
 
